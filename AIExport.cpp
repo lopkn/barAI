@@ -8,6 +8,9 @@
 #include <stdexcept>
 #include <map>
 #include <iostream>
+#include <string>
+#include <sstream>
+
 
 
 // static std::map<int, springai::OOAICallback*> myAICallbacks;
@@ -47,6 +50,38 @@ EXPORT(int) release(int skirmishAIId) {
 	return ret; // (ret != 0) => error
 }
 
+
+
+
+
+
+bool parseMoveCommand(int skirmishAIId, std::string msg);
+bool parseUnitGetter(int skirmishAIId, std::string msg);
+bool parseGeneralCommand(int skirmishAIId, std::string msg);
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
 EXPORT(int) handleEvent(int skirmishAIId, int topic, const void* data) {
 
 	//			if(myCallback != nullptr){
@@ -63,49 +98,85 @@ EXPORT(int) handleEvent(int skirmishAIId, int topic, const void* data) {
 	    }
 		case EventTopic::EVENT_UNIT_CREATED: {
 			const SUnitCreatedEvent* event = static_cast<const SUnitCreatedEvent*>(data);
-			int unit = event->unit;
+			int unitId = event->unit;
 			int builder = event->builder;
-			std::cout << "unit "<< unit << " created by " << builder << std::endl;
+			std::cout << "unit "<< unitId << " created by " << builder << std::endl;
 
 			if(builder == -1){
 				// unit is created by engine
 			}
 
 
+
+			// what unit is this
+
+
+
+			///
+
+
 			break;
 		}
 		case EventTopic::EVENT_UNIT_FINISHED: {
 			const SUnitFinishedEvent* event = static_cast<const SUnitFinishedEvent*>(data);
-			int unit = event->unit;
-			std::cout << "unit "<< unit << " finished" << std::endl;
+			int unitId = event->unit;
+			std::cout << "unit "<< unitId << " finished" << std::endl;
 
 
-			const char* text = "/say HEYYYYYYYO";
-			SSendTextMessageCommand cmd = {text, 0};
-
-
-
-
+			std::string tempstr = std::string("/say HEyO my id is ")+std::to_string(unitId);
+			const char* text = tempstr.c_str();
+			SSendTextMessageCommand cmd = {text, 1};
 			myCallback->Engine_handleCommand(skirmishAIId, COMMAND_TO_ID_ENGINE, -1, COMMAND_SEND_TEXT_MESSAGE, &cmd);
 
 
 
-			//try to move
+			//try to move // this works.
 
-			float pos[3] = {50.0f,50.0f,50.0f};
-			SMoveUnitCommand cmd2 = {};
-			cmd2.unitId = unit;
-			cmd2.options = 0;
-			cmd2.toPos_posF3 = pos;
+			// float pos[3] = {50.0f,50.0f,50.0f};
+			// SMoveUnitCommand cmd2 = {};
+			// cmd2.unitId = unitId;
+			// cmd2.options = 0;
+			// cmd2.toPos_posF3 = pos;
 
-			myCallback->Engine_handleCommand(skirmishAIId, COMMAND_TO_ID_ENGINE, -1, COMMAND_UNIT_FIGHT, &cmd2);
+			// myCallback->Engine_handleCommand(skirmishAIId, COMMAND_TO_ID_ENGINE, -1, COMMAND_UNIT_FIGHT, &cmd2);
+
+			// what is my unit?
+
+			int unitDefId = myCallback->Unit_getDef(skirmishAIId, unitId);
+			const char* unitHumanName = myCallback->UnitDef_getName(skirmishAIId, unitDefId);
+			std::cout << unitDefId << "the created unit is " << unitHumanName << std::endl;
+
+
+
+
 
 
 			break;
 		}
+	case EventTopic::EVENT_MESSAGE: {
+		const SMessageEvent* event = static_cast<const SMessageEvent*>(data);
+		int player = event->player;
+		const char* msg = event->message;
+
+		std::cout << "player " << player << " said: " << msg << std::endl;
+
+		std::string myMsg = std::string(msg);
+
+		if(myMsg=="you suck"){
+			SSendTextMessageCommand cmd = {"/say SHUT THE FUCK UP", 1};
+			myCallback->Engine_handleCommand(skirmishAIId, COMMAND_TO_ID_ENGINE, -1, COMMAND_SEND_TEXT_MESSAGE, &cmd);
+
+		}
+		parseMoveCommand(skirmishAIId,myMsg);
+		parseUnitGetter(skirmishAIId,myMsg);
+		parseGeneralCommand(skirmishAIId,myMsg);
 
 
-	    default:
+		break;
+	}
+
+
+	    default: //remember to break!!! -l
 	    	switch(topic){
 	        case 0:{std::cout<< "event: EVENT_NULL for skrimish id: " << skirmishAIId << std::endl; break;}
 			case 1:{std::cout<< "event: EVENT_INIT for skrimish id: " << skirmishAIId << std::endl; break;}
@@ -145,3 +216,145 @@ EXPORT(int) handleEvent(int skirmishAIId, int topic, const void* data) {
 
 	return ret; // (ret != 0) => error
 }
+
+
+
+
+
+
+
+
+
+
+bool parseMoveCommand(int skirmishAIId, std::string msg) {
+
+    std::stringstream ss(msg);
+    std::string cmdstr;
+    int unit;
+    int option = 0;
+    float f[3];
+
+    if (!(ss >> cmdstr) || cmdstr != "move") {
+        return false;
+    }
+
+    if (!(ss >> unit >> f[0] >> f[1] >> f[2])) {
+        return false;
+    }
+
+    ss >> option; // um this is bad? i guess it defaults to 0 and works in this case but it wont for other
+
+    std::string extra;
+    if (ss >> extra) {
+    	//command was longer than expected
+    }
+
+
+
+	SMoveUnitCommand cmd = {};
+	cmd.unitId = unit;
+	cmd.options = option;
+	cmd.toPos_posF3 = f;
+
+	myCallback->Engine_handleCommand(skirmishAIId, COMMAND_TO_ID_ENGINE, -1, COMMAND_UNIT_FIGHT, &cmd);
+
+    return true;
+}
+
+
+bool parseUnitGetter(int skirmishAIId, std::string msg) {
+
+    std::stringstream ss(msg);
+    std::string cmdstr;
+    int unit;
+    int amt;
+
+    if (!(ss >> cmdstr) || cmdstr != "ug") {
+        return false;
+    }
+    if (!(ss >> unit >> amt)) {
+        return false;
+    }
+
+	for(int i = unit; i < amt; i++){
+		const char* tun = myCallback->UnitDef_getName(skirmishAIId, i);
+		const char* tuhn = myCallback->UnitDef_getHumanName(skirmishAIId, i);
+		std::cout << i << "the created unit is " << tun << " :human: " << tuhn << " ! " << std::endl;
+	}
+
+
+    return true;
+}
+
+
+bool parseGeneralCommand(int skirmishAIId, std::string msg) {
+
+    std::stringstream ss(msg);
+    std::string cmdstr;
+    std::string cmdid;
+
+    if (!(ss >> cmdstr) || cmdstr != "cmd") {
+        return false;
+    }
+    if (!(ss >> cmdid)) {
+        return false;
+    }
+
+    std::cout << "COMMAND STARTED: " << cmdstr << std::endl;
+
+    if(cmdid == "0"){
+
+    	int unitDefId;
+    	if(!(ss >> unitDefId)){
+    		return false;
+    	}
+
+    	int ids[581], count = myCallback->UnitDef_getBuildOptions(skirmishAIId, unitDefId, ids, 581);
+
+    	for (int i = 0; i < count; ++i) std::cout << "Build Option " << i << ": " << ids[i] << std::endl;
+    	std::cout << count << std::endl;
+    } else if(cmdid == "build"){
+
+    	int unitToBuild;
+    	int unitId;
+    	if (!(ss >> unitId >> unitToBuild)) { // EXAMPLE CALL: cmd build 6901 383
+        	return false;
+    	}
+
+    	SBuildUnitCommand cmd = {};
+		cmd.unitId = unitId;
+		cmd.options = 0;
+		cmd.timeOut = 99999;
+
+		cmd.toBuildUnitDefId = unitToBuild;
+		float f2[3];
+		myCallback->Unit_getPos(skirmishAIId, unitId, f2);
+
+		std::cout << f2[0] << " " << f2[1] << " " << f2[2] << std::endl; 
+
+		cmd.buildPos_posF3 = f2;
+		cmd.facing = UNIT_COMMAND_BUILD_NO_FACING;
+
+		myCallback->Engine_handleCommand(skirmishAIId, COMMAND_TO_ID_ENGINE, -1, COMMAND_UNIT_BUILD, &cmd);
+    } else if(cmdid == "selfd"){
+
+    	int unitId;
+    	if (!(ss >> unitId)) { // EXAMPLE CALL: cmd selfd 6901
+        	return false;
+    	}
+
+    	SSelfDestroyUnitCommand cmd = {};
+		cmd.unitId = unitId;
+
+		myCallback->Engine_handleCommand(skirmishAIId, COMMAND_TO_ID_ENGINE, -1, COMMAND_UNIT_SELF_DESTROY, &cmd);
+    }
+
+    std::cout << "COMMAND FINISHED!" << std::endl;
+    return true;
+}
+
+
+
+
+
+
