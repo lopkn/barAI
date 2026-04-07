@@ -7,9 +7,35 @@
 
 #include <stdexcept>
 #include <map>
+#include <vector>
 #include <iostream>
 #include <string>
 #include <sstream>
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+void initData_store(int skirmishAIId);
+
+
+
+
+
+
+
+
+
 
 
 
@@ -37,6 +63,8 @@ EXPORT(int) init(int skirmishAIId, const struct SSkirmishAICallback* innerCallba
 
 	myCallback = innerCallback;
 
+	initData_store(skirmishAIId);
+
 	int ret = 0;
 
 	return ret; // (ret != 0) => error
@@ -53,6 +81,15 @@ EXPORT(int) release(int skirmishAIId) {
 
 
 
+void sendMsg(int skirmishAIId, std::string msg){
+	msg = "/say "+msg;
+	SSendTextMessageCommand cmd = {msg.c_str(), 1};
+
+	myCallback->Engine_handleCommand(skirmishAIId, COMMAND_TO_ID_ENGINE, -1, COMMAND_SEND_TEXT_MESSAGE, &cmd);
+	return;
+}
+
+
 
 
 bool parseMoveCommand(int skirmishAIId, std::string msg);
@@ -64,10 +101,24 @@ bool parseGeneralCommand(int skirmishAIId, std::string msg);
 
 
 
+struct data_store{
+	float metalMap[300];
+	int totalMetalPoints = 0;
+};
+
+data_store dat;
 
 
+void initData_store(int skirmishAIId){
+	myCallback->Map_getResourceMapSpotsPositions(skirmishAIId,0,dat.metalMap,300);
+	std::cout << "testing: " << dat.metalMap[299] << std::endl;
+
+	while(dat.metalMap[dat.totalMetalPoints] != 0){
+		dat.totalMetalPoints += 3;
+	}
 
 
+}
 
 
 
@@ -89,10 +140,19 @@ EXPORT(int) handleEvent(int skirmishAIId, int topic, const void* data) {
 	//		    }
 
 	switch (topic) {
+
+
+	case EventTopic::EVENT_INIT:{
+		// sendMsg(skirmishAIId, "Initializing!");
+
+		break;
+	}
+
 	    case EventTopic::EVENT_UPDATE: {
 	    	const SUpdateEvent* event = static_cast<const SUpdateEvent*>(data);
 	    	int frame = event->frame;
 	    	// std::cout << "frame: " << frame << std::endl; // works -l
+
 	        
 	        break;
 	    }
@@ -165,7 +225,6 @@ EXPORT(int) handleEvent(int skirmishAIId, int topic, const void* data) {
 		if(myMsg=="you suck"){
 			SSendTextMessageCommand cmd = {"/say SHUT THE FUCK UP", 1};
 			myCallback->Engine_handleCommand(skirmishAIId, COMMAND_TO_ID_ENGINE, -1, COMMAND_SEND_TEXT_MESSAGE, &cmd);
-
 		}
 		parseMoveCommand(skirmishAIId,myMsg);
 		parseUnitGetter(skirmishAIId,myMsg);
@@ -216,6 +275,22 @@ EXPORT(int) handleEvent(int skirmishAIId, int topic, const void* data) {
 
 	return ret; // (ret != 0) => error
 }
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
 
 
 
@@ -277,9 +352,9 @@ bool parseUnitGetter(int skirmishAIId, std::string msg) {
     }
 
 	for(int i = unit; i < amt; i++){
-		const char* tun = myCallback->UnitDef_getName(skirmishAIId, i);
-		const char* tuhn = myCallback->UnitDef_getHumanName(skirmishAIId, i);
-		std::cout << i << "the created unit is " << tun << " :human: " << tuhn << " ! " << std::endl;
+		const char* thisUnitName = myCallback->UnitDef_getName(skirmishAIId, i);
+		const char* thisUnitHumanName = myCallback->UnitDef_getHumanName(skirmishAIId, i);
+		std::cout << i << ": the created unit is: " << thisUnitName << " human name: " << thisUnitHumanName << " ! " << std::endl;
 	}
 
 
@@ -317,14 +392,18 @@ bool parseGeneralCommand(int skirmishAIId, std::string msg) {
 
     	int unitToBuild;
     	int unitId;
-    	if (!(ss >> unitId >> unitToBuild)) { // EXAMPLE CALL: cmd build 6901 383
+    	int options;
+
+    	if (!(ss >> unitId >> unitToBuild)) { // EXAMPLE CALL: cmd build 6901 383 <32>
         	return false;
+    	}
+    	if(!(ss >> options)){
+    		options = 0; // i know its already zero, but it sets it to zero. so if it ever needs to be anything else, change here
     	}
 
     	SBuildUnitCommand cmd = {};
 		cmd.unitId = unitId;
-		cmd.options = 0;
-		cmd.timeOut = 99999;
+		cmd.options = options;
 
 		cmd.toBuildUnitDefId = unitToBuild;
 		float f2[3];
@@ -347,6 +426,97 @@ bool parseGeneralCommand(int skirmishAIId, std::string msg) {
 		cmd.unitId = unitId;
 
 		myCallback->Engine_handleCommand(skirmishAIId, COMMAND_TO_ID_ENGINE, -1, COMMAND_UNIT_SELF_DESTROY, &cmd);
+    } else if(cmdid == "moved"){
+
+    	int unitId;
+    	int options;
+    	float delta[2];
+
+    	if (!(ss >> unitId >> delta[0] >> delta[1])) { // EXAMPLE CALL: cmd moved 6901 5 15 <32>
+        	return false;
+    	}
+    	if(!(ss >> options)){
+    		options = 0; 
+    	}
+
+    	SMoveUnitCommand cmd = {};
+		cmd.unitId = unitId;
+		cmd.options = options;
+		cmd.timeOut = 9999999;
+
+		float pos[3];
+		myCallback->Unit_getPos(skirmishAIId, unitId, pos);
+		pos[0] += delta[0];
+		pos[2] += delta[1];
+		cmd.toPos_posF3 = pos;
+
+		myCallback->Engine_handleCommand(skirmishAIId, COMMAND_TO_ID_ENGINE, -1, COMMAND_UNIT_MOVE, &cmd);
+    } else if(cmdid == "move"){
+
+    	int unitId;
+    	int options;
+    	float pos[3];
+
+    	if (!(ss >> unitId >> pos[0] >> pos[1] >> pos[2])) { // EXAMPLE CALL: cmd moved 6901 5 15 <32>
+        	return false;
+    	}
+    	if(!(ss >> options)){
+    		options = 0; 
+    	}
+
+    	SMoveUnitCommand cmd = {};
+		cmd.unitId = unitId;
+		cmd.options = options;
+		cmd.timeOut = 9999999;
+		cmd.toPos_posF3 = pos;
+
+		myCallback->Engine_handleCommand(skirmishAIId, COMMAND_TO_ID_ENGINE, -1, COMMAND_UNIT_MOVE, &cmd);
+    }  else if(cmdid == "nearestMex"){
+    	// (CALLING_CONV *Map_getResourceMapSpotsNearest)(int skirmishAIId, int resourceId, float* pos_posF3, float* return_posF3_out)
+    	int unitId;
+    	int resourceId;
+
+    	if (!(ss >> unitId)) { // EXAMPLE CALL: cmd moved 6901 5 15 <32>
+        	return false;
+    	}
+    	if(!(ss >> resourceId)){
+    		resourceId = 0; 
+    	}
+
+
+
+		float pos[3];
+		myCallback->Unit_getPos(skirmishAIId, unitId, pos);
+		float posOut[3];
+		myCallback->Map_getResourceMapSpotsNearest(skirmishAIId, resourceId, pos, posOut);
+
+		std::stringstream tss;
+		tss << "mex pos is: " << posOut[0] << ", " << posOut[1] << ", " << posOut[2] << std::endl;
+		sendMsg(skirmishAIId,tss.str());
+
+    }  else if(cmdid == "mexall"){
+    	// (CALLING_CONV *Map_getResourceMapSpotsNearest)(int skirmishAIId, int resourceId, float* pos_posF3, float* return_posF3_out)
+    	int unitId;
+
+    	if (!(ss >> unitId)) { // EXAMPLE CALL: cmd mexall
+        	return false;
+    	}
+
+    	for(int i = 0; i < dat.totalMetalPoints; i++){
+    		float pos[3];
+    		int mpos = i*3;
+    		pos[0] = dat.metalMap[mpos+0];
+    		pos[1] = dat.metalMap[mpos+1];
+    		pos[2] = dat.metalMap[mpos+2];
+
+    		std::stringstream tss;
+    		tss << "cmd move " << unitId << " " << pos[0] << " " << 0 << " " << pos[2] << " 32" << std::endl;
+    		parseGeneralCommand(skirmishAIId,tss.str());
+    	}
+
+
+    }else if(cmdid == "ping"){
+		sendMsg(skirmishAIId,"pong!");
     }
 
     std::cout << "COMMAND FINISHED!" << std::endl;
@@ -358,3 +528,10 @@ bool parseGeneralCommand(int skirmishAIId, std::string msg) {
 
 
 
+// enum UnitCommandOptions {
+// 	UNIT_COMMAND_OPTION_INTERNAL_ORDER    = (1 << 3), //   8
+// 	UNIT_COMMAND_OPTION_RIGHT_MOUSE_KEY   = (1 << 4), //  16
+// 	UNIT_COMMAND_OPTION_SHIFT_KEY         = (1 << 5), //  32
+// 	UNIT_COMMAND_OPTION_CONTROL_KEY       = (1 << 6), //  64
+// 	UNIT_COMMAND_OPTION_ALT_KEY           = (1 << 7), // 128
+// };
