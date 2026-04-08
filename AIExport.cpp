@@ -512,6 +512,10 @@ bool parseGeneralCommand(int skirmishAIId, std::string msg) {
     		std::stringstream tss;
     		tss << "cmd move " << unitId << " " << pos[0] << " " << 0 << " " << pos[2] << " 32" << std::endl;
     		parseGeneralCommand(skirmishAIId,tss.str());
+
+    		std::stringstream tss2;
+    		tss2 << "cmd build " << unitId << " 392 32" << std::endl;
+    		parseGeneralCommand(skirmishAIId,tss2.str());
     	}
 
 
