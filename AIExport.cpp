@@ -10,6 +10,7 @@
 #include <vector>
 #include <iostream>
 #include <string>
+#include <array>
 #include <sstream>
 
 
@@ -101,20 +102,40 @@ bool parseGeneralCommand(int skirmishAIId, std::string msg);
 
 
 
-struct data_store{
-	float metalMap[300];
-	int totalMetalPoints = 0;
+struct metal_point{
+	float x,y,z;
+	bool capped;
 };
+
+
+struct data_store{
+	float metalSpots[300];
+	int totalMetalPoints = 0;
+	std::vector<metal_point> metalMap;
+};
+
 
 data_store dat;
 
 
 void initData_store(int skirmishAIId){
-	myCallback->Map_getResourceMapSpotsPositions(skirmishAIId,0,dat.metalMap,300);
-	std::cout << "testing: " << dat.metalMap[299] << std::endl;
 
-	while(dat.metalMap[dat.totalMetalPoints] != 0){
-		dat.totalMetalPoints += 3;
+	myCallback->Map_getResourceMapSpotsPositions(skirmishAIId,0,dat.metalSpots,300);
+	std::cout << "testing: " << dat.metalSpots[299] << std::endl;
+
+	while(dat.metalSpots[dat.totalMetalPoints*3] != 0){
+		metal_point m = {
+			dat.metalSpots[dat.totalMetalPoints+0],
+			dat.metalSpots[dat.totalMetalPoints+1],
+			dat.metalSpots[dat.totalMetalPoints+2],
+			false
+		};
+
+		dat.metalMap.push_back(m);
+
+
+		dat.totalMetalPoints += 1;
+
 	}
 
 
@@ -393,29 +414,65 @@ bool parseGeneralCommand(int skirmishAIId, std::string msg) {
     	int unitToBuild;
     	int unitId;
     	int options;
+		float f2[3];
 
-    	if (!(ss >> unitId >> unitToBuild)) { // EXAMPLE CALL: cmd build 6901 383 <32>
+    	if (!(ss >> unitId >> unitToBuild)) { // EXAMPLE CALL: cmd build 6901 383 <32> <1 2 3> // useful to note: 392 = mex
         	return false;
     	}
     	if(!(ss >> options)){
     		options = 0; // i know its already zero, but it sets it to zero. so if it ever needs to be anything else, change here
     	}
 
+    	if(!(ss >> f2[0] >> f2[1] >> f2[2])){
+    		myCallback->Unit_getPos(skirmishAIId, unitId, f2);
+    	}
+
     	SBuildUnitCommand cmd = {};
 		cmd.unitId = unitId;
 		cmd.options = options;
+    	cmd.toBuildUnitDefId = unitToBuild;
 
-		cmd.toBuildUnitDefId = unitToBuild;
-		float f2[3];
-		myCallback->Unit_getPos(skirmishAIId, unitId, f2);
 
-		std::cout << f2[0] << " " << f2[1] << " " << f2[2] << std::endl; 
 
 		cmd.buildPos_posF3 = f2;
 		cmd.facing = UNIT_COMMAND_BUILD_NO_FACING;
 
 		myCallback->Engine_handleCommand(skirmishAIId, COMMAND_TO_ID_ENGINE, -1, COMMAND_UNIT_BUILD, &cmd);
-    } else if(cmdid == "selfd"){
+    }  else if(cmdid == "smartBuild"){
+	// void              (CALLING_CONV *Map_findClosestBuildSite)(int skirmishAIId, int unitDefId, float* pos_posF3, float searchRadius, int minDist, int facing, float* return_posF3_out); //$ REF:unitDefId->UnitDef
+
+    	int unitToBuild;
+    	int unitId;
+    	int options;
+
+    	if (!(ss >> unitId >> unitToBuild)) { // EXAMPLE CALL: cmd build 6901 383 <32> <1 2 3> // useful to note: 392 = mex
+        	return false;
+    	}
+    	if(!(ss >> options)){
+    		options = 0; // i know its already zero, but it sets it to zero. so if it ever needs to be anything else, change here
+    	}
+
+		float f2[3];
+    	myCallback->Unit_getPos(skirmishAIId, unitId, f2);
+    	float f3[3];
+    	myCallback->Map_findClosestBuildSite(skirmishAIId,unitToBuild,f2,9999,10,UNIT_COMMAND_BUILD_NO_FACING, f3);
+
+    	SBuildUnitCommand cmd = {};
+		cmd.unitId = unitId;
+		cmd.options = options;
+    	cmd.toBuildUnitDefId = unitToBuild;
+
+
+
+		cmd.buildPos_posF3 = f3;
+		cmd.facing = UNIT_COMMAND_BUILD_NO_FACING;
+
+		myCallback->Engine_handleCommand(skirmishAIId, COMMAND_TO_ID_ENGINE, -1, COMMAND_UNIT_BUILD, &cmd);
+    } 
+
+
+
+    else if(cmdid == "selfd"){
 
     	int unitId;
     	if (!(ss >> unitId)) { // EXAMPLE CALL: cmd selfd 6901
@@ -476,7 +533,7 @@ bool parseGeneralCommand(int skirmishAIId, std::string msg) {
     	int unitId;
     	int resourceId;
 
-    	if (!(ss >> unitId)) { // EXAMPLE CALL: cmd moved 6901 5 15 <32>
+    	if (!(ss >> unitId)) { // EXAMPLE CALL: cmd nearestMex 6901
         	return false;
     	}
     	if(!(ss >> resourceId)){
@@ -505,9 +562,9 @@ bool parseGeneralCommand(int skirmishAIId, std::string msg) {
     	for(int i = 0; i < dat.totalMetalPoints; i++){
     		float pos[3];
     		int mpos = i*3;
-    		pos[0] = dat.metalMap[mpos+0];
-    		pos[1] = dat.metalMap[mpos+1];
-    		pos[2] = dat.metalMap[mpos+2];
+    		pos[0] = dat.metalSpots[mpos+0];
+    		pos[1] = dat.metalSpots[mpos+1];
+    		pos[2] = dat.metalSpots[mpos+2];
 
     		std::stringstream tss;
     		tss << "cmd move " << unitId << " " << pos[0] << " " << 0 << " " << pos[2] << " 32" << std::endl;
@@ -521,6 +578,18 @@ bool parseGeneralCommand(int skirmishAIId, std::string msg) {
 
     }else if(cmdid == "ping"){
 		sendMsg(skirmishAIId,"pong!");
+    } else if(cmdid == "pos"){
+    	int unitId;
+    	if (!(ss >> unitId)) { // EXAMPLE CALL: cmd pos 6901
+        	return false;
+    	}
+    	float pos[3];
+		myCallback->Unit_getPos(skirmishAIId, unitId, pos);
+
+		std::stringstream tss;
+		tss << "my pos is: " << pos[0] << ", " << pos[1] << ", " << pos[2] << std::endl;
+		sendMsg(skirmishAIId,tss.str());
+
     }
 
     std::cout << "COMMAND FINISHED!" << std::endl;
