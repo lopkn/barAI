@@ -4,6 +4,8 @@
 #include "AISCommands.h"
 #include "ExternalAI/Interface/AISEvents.h"
 
+// #include "ExternalAI/AICallback.h"
+
 
 #include <stdexcept>
 #include <map>
@@ -59,10 +61,12 @@ const static int ERROR_SHIFT = 100;
 
 
 const SSkirmishAICallback* myCallback = nullptr;
+// const CAICallback* myCallback2 = nullptr;
 
 EXPORT(int) init(int skirmishAIId, const struct SSkirmishAICallback* innerCallback) {
 
 	myCallback = innerCallback;
+	// myCallback2 = GetCallBack(skirmishAIId);
 
 	initData_store(skirmishAIId);
 
@@ -445,7 +449,7 @@ bool parseGeneralCommand(int skirmishAIId, std::string msg) {
     	int unitId;
     	int options;
 
-    	if (!(ss >> unitId >> unitToBuild)) { // EXAMPLE CALL: cmd build 6901 383 <32> <1 2 3> // useful to note: 392 = mex
+    	if (!(ss >> unitId >> unitToBuild)) { // EXAMPLE CALL: cmd smartBuild 6901 383 <32> // useful to note: 392 = mex
         	return false;
     	}
     	if(!(ss >> options)){
@@ -455,7 +459,7 @@ bool parseGeneralCommand(int skirmishAIId, std::string msg) {
 		float f2[3];
     	myCallback->Unit_getPos(skirmishAIId, unitId, f2);
     	float f3[3];
-    	myCallback->Map_findClosestBuildSite(skirmishAIId,unitToBuild,f2,9999,10,UNIT_COMMAND_BUILD_NO_FACING, f3);
+    	myCallback->Map_findClosestBuildSite(skirmishAIId,unitToBuild,f2,9999,1,UNIT_COMMAND_BUILD_NO_FACING, f3);
 
     	SBuildUnitCommand cmd = {};
 		cmd.unitId = unitId;
@@ -466,6 +470,11 @@ bool parseGeneralCommand(int skirmishAIId, std::string msg) {
 
 		cmd.buildPos_posF3 = f3;
 		cmd.facing = UNIT_COMMAND_BUILD_NO_FACING;
+
+
+		std::stringstream tss;
+		tss << "mexing pos: " << f3[0] << ", " << f3[1] << ", " << f3[2] << std::endl;
+		sendMsg(skirmishAIId,tss.str());
 
 		myCallback->Engine_handleCommand(skirmishAIId, COMMAND_TO_ID_ENGINE, -1, COMMAND_UNIT_BUILD, &cmd);
     } 
@@ -590,6 +599,11 @@ bool parseGeneralCommand(int skirmishAIId, std::string msg) {
 		tss << "my pos is: " << pos[0] << ", " << pos[1] << ", " << pos[2] << std::endl;
 		sendMsg(skirmishAIId,tss.str());
 
+    }else if(cmdid == "test"){
+    	// int t = myCallback->GetNumUnitDefs();
+		// std::stringstream tss;
+		// tss << t << std::endl;
+		// sendMsg(skirmishAIId,tss.str());
     }
 
     std::cout << "COMMAND FINISHED!" << std::endl;
