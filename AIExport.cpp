@@ -14,8 +14,9 @@
 #include <string>
 #include <array>
 #include <sstream>
+#include "sort.hpp"
 
-
+#include <unordered_set>
 
 
 
@@ -322,10 +323,6 @@ EXPORT(int) handleEvent(int skirmishAIId, int topic, const void* data) {
 
 
 
-
-
-
-
 bool parseMoveCommand(int skirmishAIId, std::string msg) {
 
     std::stringstream ss(msg);
@@ -400,7 +397,7 @@ bool parseGeneralCommand(int skirmishAIId, std::string msg) {
         return false;
     }
 
-    std::cout << "COMMAND STARTED: " << cmdstr << std::endl;
+    std::cout << "COMMAND STARTED: " << msg << std::endl;
 
     if(cmdid == "0"){
 
@@ -564,7 +561,7 @@ bool parseGeneralCommand(int skirmishAIId, std::string msg) {
     	// (CALLING_CONV *Map_getResourceMapSpotsNearest)(int skirmishAIId, int resourceId, float* pos_posF3, float* return_posF3_out)
     	int unitId;
 
-    	if (!(ss >> unitId)) { // EXAMPLE CALL: cmd mexall
+    	if (!(ss >> unitId)) { // EXAMPLE CALL: cmd mexall 6901
         	return false;
     	}
 
@@ -583,6 +580,56 @@ bool parseGeneralCommand(int skirmishAIId, std::string msg) {
     		tss2 << "cmd build " << unitId << " 392 32" << std::endl;
     		parseGeneralCommand(skirmishAIId,tss2.str());
     	}
+
+
+    } else if(cmdid == "mexN"){
+    	// (CALLING_CONV *Map_getResourceMapSpotsNearest)(int skirmishAIId, int resourceId, float* pos_posF3, float* return_posF3_out)
+    	int unitId;
+    	int N;
+
+    	if (!(ss >> unitId >> N)) { // EXAMPLE CALL: cmd mexN 6901 3
+        	return false;
+    	}
+
+    	float myPos[3];
+		myCallback->Unit_getPos(skirmishAIId, unitId, myPos);
+
+		std::unordered_set<std::string> repeats;
+
+		for(int n = 0; n < N; n++){
+			sortTriplets(dat.metalSpots,myPos,dat.totalMetalPoints);
+
+			float mexPos[3] = {dat.metalSpots[0],dat.metalSpots[1],dat.metalSpots[2]};
+			for(int i = 0; i < dat.totalMetalPoints; i++){
+	    		bool x = myCallback->Map_isPossibleToBuildAt(skirmishAIId,392,mexPos,UNIT_COMMAND_BUILD_NO_FACING);
+	    		std::string id = joinTriplet(mexPos[0],mexPos[1],mexPos[2]);
+	    		bool rep = (repeats.find(id) != repeats.end());
+
+	    		if(x && !rep){repeats.insert(id);break;}
+	    		mexPos[0] = dat.metalSpots[i*3];
+	    		mexPos[1] = dat.metalSpots[i*3+1];
+	    		mexPos[2] = dat.metalSpots[i*3+2];
+	    		
+			}
+
+    		    	SBuildUnitCommand cmd = {};
+					cmd.unitId = unitId;
+					cmd.options = 32;
+			    	cmd.toBuildUnitDefId = 392;
+
+
+
+					cmd.buildPos_posF3 = mexPos;
+					cmd.facing = UNIT_COMMAND_BUILD_NO_FACING;
+
+
+					std::stringstream tss;
+					tss << "mexing pos: " << mexPos[0] << ", " << mexPos[1] << ", " << mexPos[2] << std::endl;
+					sendMsg(skirmishAIId,tss.str());
+
+					myCallback->Engine_handleCommand(skirmishAIId, COMMAND_TO_ID_ENGINE, -1, COMMAND_UNIT_BUILD, &cmd);
+		}
+
 
 
     }else if(cmdid == "ping"){
