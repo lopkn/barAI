@@ -4,6 +4,7 @@
 #include "AISCommands.h"
 #include "ExternalAI/Interface/AISEvents.h"
 
+
 // #include "ExternalAI/AICallback.h"
 
 
@@ -20,7 +21,7 @@
 
 
 
-
+#include "Map/ReadMap.h"
 
 
 
@@ -116,6 +117,12 @@ struct metal_point{
 struct data_store{
 	float metalSpots[300];
 	int totalMetalPoints = 0;
+	int mapX = 1000;
+	int mapY = 1000;
+
+	int midX = 500;
+	int midY = 500;
+
 	std::vector<metal_point> metalMap;
 };
 
@@ -142,6 +149,14 @@ void initData_store(int skirmishAIId){
 		dat.totalMetalPoints += 1;
 
 	}
+
+	// map stuff
+
+	dat.mapX = myCallback->Map_getWidth(skirmishAIId) * 8; //smaller by fact of 8
+    dat.mapY = myCallback->Map_getHeight(skirmishAIId) * 8;
+
+    dat.midX = dat.mapX/2;
+    dat.midY = dat.mapY/2;
 
 
 }
@@ -583,7 +598,6 @@ bool parseGeneralCommand(int skirmishAIId, std::string msg) {
 
 
     } else if(cmdid == "mexN"){
-    	// (CALLING_CONV *Map_getResourceMapSpotsNearest)(int skirmishAIId, int resourceId, float* pos_posF3, float* return_posF3_out)
     	int unitId;
     	int N;
 
@@ -632,7 +646,45 @@ bool parseGeneralCommand(int skirmishAIId, std::string msg) {
 
 
 
-    }else if(cmdid == "ping"){
+    }else if(cmdid == "solN"){
+    	int unitId;
+    	int N;
+
+    	if (!(ss >> unitId >> N)) { // EXAMPLE CALL: cmd solN 6901 3
+        	return false; 
+    	}
+    	// 462
+    	float myPos[3];
+		myCallback->Unit_getPos(skirmishAIId, unitId, myPos);
+		float solPos[3] = {myPos[0],myPos[1],myPos[2]};
+		float t[3] = {dat.midX,0,dat.midY};
+		towards3(solPos,t,60,solPos);
+
+		for(int n = 0; n < N; n++){
+
+			SBuildUnitCommand cmd = {};
+			cmd.unitId = unitId;
+			cmd.options = 32;
+	    	cmd.toBuildUnitDefId = 462;
+			cmd.buildPos_posF3 = solPos;
+			cmd.facing = UNIT_COMMAND_BUILD_NO_FACING;
+
+
+			myCallback->Engine_handleCommand(skirmishAIId, COMMAND_TO_ID_ENGINE, -1, COMMAND_UNIT_BUILD, &cmd);
+		}
+
+
+    } else if(cmdid=="info"){
+
+    	int x = myCallback->Map_getWidth(skirmishAIId); //smaller by fact of 8
+    	int y = myCallback->Map_getWidth(skirmishAIId);
+    	std::stringstream tss;
+		tss << "mapX: " << x;
+		tss << "mapY: " << y << std::endl;
+		sendMsg(skirmishAIId,tss.str());
+
+
+    } else if(cmdid == "ping"){
 		sendMsg(skirmishAIId,"pong!");
     } else if(cmdid == "pos"){
     	int unitId;
