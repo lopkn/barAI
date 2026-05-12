@@ -662,6 +662,12 @@ bool parseGeneralCommand(int skirmishAIId, std::string msg) {
 
 		for(int n = 0; n < N; n++){
 
+			for(int attempts = 0; attempts < 100; attempts++){
+				bool x = myCallback->Map_isPossibleToBuildAt(skirmishAIId,462,solPos,UNIT_COMMAND_BUILD_NO_FACING);
+				if(x){break;}
+				towards3(solPos,t,85,solPos);
+			}
+
 			SBuildUnitCommand cmd = {};
 			cmd.unitId = unitId;
 			cmd.options = 32;
@@ -671,6 +677,7 @@ bool parseGeneralCommand(int skirmishAIId, std::string msg) {
 
 
 			myCallback->Engine_handleCommand(skirmishAIId, COMMAND_TO_ID_ENGINE, -1, COMMAND_UNIT_BUILD, &cmd);
+			towards3(solPos,t,85,solPos);
 		}
 
 
