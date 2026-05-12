@@ -108,6 +108,20 @@ bool parseGeneralCommand(int skirmishAIId, std::string msg);
 
 
 
+
+
+
+
+
+
+struct dynamic_data_store{
+	std::unordered_map<int, std::vector<std::string>> equeue;
+};
+
+
+
+
+
 struct metal_point{
 	float x,y,z;
 	bool capped;
@@ -128,6 +142,7 @@ struct data_store{
 
 
 data_store dat;
+dynamic_data_store dds;
 
 
 void initData_store(int skirmishAIId){
@@ -274,6 +289,19 @@ EXPORT(int) handleEvent(int skirmishAIId, int topic, const void* data) {
 
 		break;
 	}
+	case EventTopic::EVENT_UNIT_IDLE: {
+		const SUnitIdleEvent* event = static_cast<const SUnitIdleEvent*>(data);
+		int unit = event->unit;
+
+		if (dds.equeue.count(unit) && !dds.equeue[unit].empty()) {
+		    std::string after = dds.equeue[unit].front();
+			parseGeneralCommand(skirmishAIId, after);
+
+			dds.equeue[unit].erase(dds.equeue[unit].begin());
+		}
+
+		break;
+	}
 
 
 	    default: //remember to break!!! -l
@@ -316,9 +344,6 @@ EXPORT(int) handleEvent(int skirmishAIId, int topic, const void* data) {
 
 	return ret; // (ret != 0) => error
 }
-
-
-
 
 
 
@@ -681,7 +706,25 @@ bool parseGeneralCommand(int skirmishAIId, std::string msg) {
 		}
 
 
-    } else if(cmdid=="info"){
+    } else if(cmdid == "pendend" || cmdid == "then" || cmdid=="after"){
+
+    	int unitId;
+    	 if (!(ss >> unitId)) { // EXAMPLE CALL: cmd pendend 6901 cmd selfd 6901
+        	return false; 
+    	}
+
+    	std::string after;
+
+
+    	std::getline(ss >> std::ws, after);	
+    	replaceAll(after,"@s",std::to_string(unitId));
+    	after = "cmd "+after;
+
+    	dds.equeue[unitId].push_back(after);
+
+    	//parseGeneralCommand(skirmishAIId, after);
+
+    }else if(cmdid=="info"){
 
     	int x = myCallback->Map_getWidth(skirmishAIId); //smaller by fact of 8
     	int y = myCallback->Map_getWidth(skirmishAIId);
@@ -704,6 +747,15 @@ bool parseGeneralCommand(int skirmishAIId, std::string msg) {
 		std::stringstream tss;
 		tss << "my pos is: " << pos[0] << ", " << pos[1] << ", " << pos[2] << std::endl;
 		sendMsg(skirmishAIId,tss.str());
+
+		int udef = myCallback->Unit_getDef(skirmishAIId, unitId);
+		int x = myCallback->UnitDef_getXSize(skirmishAIId,udef);
+		int z = myCallback->UnitDef_getZSize(skirmishAIId,udef);
+
+		std::stringstream tss2;
+		tss2 << "my fat is: " << x << ", " << z << std::endl;
+		sendMsg(skirmishAIId,tss2.str());
+
 
     }else if(cmdid == "test"){
     	// int t = myCallback->GetNumUnitDefs();

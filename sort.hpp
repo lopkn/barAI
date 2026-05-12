@@ -4,6 +4,9 @@
 #include <algorithm>
 #include <numeric>
 #include <cmath>
+#include <string>
+#include <iostream>
+
 
 /**
  * Sorts n triplets of floats in a flat array based on their 
@@ -65,3 +68,14 @@ void towards3(float from[3], float to[3], float magnitude, float out[3]){
     out[2] = from[2]+vz/d*magnitude;
 }
 
+
+void replaceAll(std::string& str, const std::string& from, const std::string& to) {
+    if(from.empty()) return;
+    size_t start_pos = 0;
+    while((start_pos = str.find(from, start_pos)) != std::string::npos) {
+        str.replace(start_pos, from.length(), to);
+        // Advance position past the replacement to avoid infinite loops 
+        // if 'to' contains 'from'
+        start_pos += to.length(); 
+    }
+}
