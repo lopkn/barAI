@@ -724,6 +724,18 @@ bool parseGeneralCommand(int skirmishAIId, std::string msg) {
 
     	//parseGeneralCommand(skirmishAIId, after);
 
+    }else if (cmdid == "order"){
+    	int unitId;
+    	if (!(ss >> unitId)) { // EXAMPLE CALL: cmd order 6901
+        	return false;
+    	}
+
+		parseGeneralCommand(skirmishAIId, replaceAll("cmd mexN @s 3",unitId));
+		parseGeneralCommand(skirmishAIId, replaceAll("cmd pendend @s solN @s 2",unitId));
+		parseGeneralCommand(skirmishAIId, replaceAll("cmd pendend @s smartBuild @s 383 32",unitId));
+		parseGeneralCommand(skirmishAIId, replaceAll("cmd pendend @s solN @s 2",unitId));
+
+
     }else if(cmdid=="info"){
 
     	int x = myCallback->Map_getWidth(skirmishAIId); //smaller by fact of 8
